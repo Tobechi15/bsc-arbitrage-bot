@@ -5,6 +5,7 @@ const fs = require('fs');
 const TelegramBot = require("node-telegram-bot-api");
 const fetchPotentialTokens = require('./script/fetchPotentialTokens.js'); // Import the fetchPotentialTokens script
 const Bottleneck = require("bottleneck");
+const http = require("http");
 
 // Initialize Web3
 const web3 = new Web3(process.env.BSC_NODE_URL);
