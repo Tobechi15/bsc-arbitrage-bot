@@ -416,5 +416,13 @@ async function startBot() {
     await new Promise(resolve => setTimeout(resolve, 20000));
   }
 }
+// Set up an HTTP server for port listening
+const PORT = 10000; // Use the PORT environment variable or default to 3000
+http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("Bot is running...\n");
+}).listen(PORT, () => {
+  console.log(`Server is listening on port ${PORT}`);
+});
 
 startBot();
