@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arbitrage Transactions</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.1/moment.min.js"></script>
+
+</head>
+
+<body class="bg-gray-100 min-h-screen flex justify-center items-center">
+
+
+
+    <!-- Glassmorphism Container -->
+    <div class="bg-white/30 rounded-lg shadow-lg backdrop-blur-xl p-8 w-full max-w-5xl space-y-6">
+
+        <h1 class="text-center text-3xl font-semibold text-blue-600">Arbitrage Transactions</h1>
+
+        <!-- Total Profit Data Card -->
+        <div class="bg-blue-600 text-white p-4 rounded-lg shadow-md">
+            <h2 class="text-lg font-semibold">Total Profit in USDT</h2>
+            <p id="totalProfit" class="text-2xl font-bold">Loading...</p>
+        </div>
+
+        <div class="flex flex-row-reverse ">
+            <button id="refreshButton"
+                class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">Refresh</button>
+        </div>
+
+        <!-- Chart for Gradual Profit Increase -->
+        <div class="bg-white p-4 rounded-lg shadow-md">
+            <h2 class="text-lg font-semibold text-blue-600">Profit Increase Over Time</h2>
+            <canvas id="profitChart"></canvas>
+        </div>
+
+        <div class="bg-white p-4 rounded-lg shadow-md">
+            <h2 class="text-lg font-semibold text-blue-600">Highest Profit Token</h2>
+            <p id="highestProfitToken"></p>
+            <p id="highestProfitAmount"></p>
+        </div>
+
+        <div class="bg-white p-4 rounded-lg shadow-md">
+            <h2 class="text-lg font-semibold text-blue-600">Lowest Profit Token</h2>
+            <p id="lowestProfitToken"></p>
+            <p id="lowestProfitAmount"></p>
+        </div>
+
+        <h1 class="text-center text-3xl font-semibold text-blue-600">Arbitrage Table</h1>
+        <!-- Table with Faint Borders -->
+        <table class="min-w-full table-auto bg-white border border-gray-200 rounded-lg shadow-md">
+            <thead>
+                <tr class="bg-blue-100 text-gray-900">
+                    <th class="px-4 py-2 text-sm text-left border-b border-gray-200">Token Name</th>
+                    <th class="px-4 py-2 text-sm text-left border-b border-gray-200">Timestamp</th>
+                    <th class="px-4 py-2 text-sm text-left border-b border-gray-200">From DEX</th>
+                    <th class="px-4 py-2 text-sm text-left border-b border-gray-200">To DEX</th>
+                    <th class="px-4 py-2 text-sm text-left border-b border-gray-200">BNB Amount In</th>
+                    <th class="px-4 py-2 text-sm text-left border-b border-gray-200">Profit in USDT</th>
+                    <th class="px-4 py-2 text-sm text-left border-b border-gray-200">Profit in Token</th>
+                    <th class="px-4 py-2 text-sm text-left border-b border-gray-200">Profit Percentage</th>
+                </tr>
+            </thead>
+            <tbody id="transactionsTable" class="text-sm text-gray-800">
+                <!-- Data will be populated here -->
+            </tbody>
+        </table>
+
+        <!-- Pagination Controls -->
+        <div class="flex justify-between items-center mt-4">
+            <button id="prevPage" class="bg-blue-500 text-white py-2 px-4 rounded-lg">Previous</button>
+            <span id="pageNumber" class="text-lg text-gray-700">Page 1</span>
+            <button id="nextPage" class="bg-blue-500 text-white py-2 px-4 rounded-lg">Next</button>
+        </div>
+    </div>
+
+    <script>
+        const rowsPerPage = 5;
+        let currentPage = 1;
+        let transactions = [];
+        let totalPages = 0;
+        let totalProfitInUsdt = 0;
+        let profitOverTime = [];  // Array to track profit increase over time
+
+        const tableBody = document.getElementById('transactionsTable');
+        const pageNumber = document.getElementById('pageNumber');
+        const prevPageButton = document.getElementById('prevPage');
+        const nextPageButton = document.getElementById('nextPage');
+        const totalProfitElement = document.getElementById('totalProfit');
+
+        // Function to calculate total profit for each token
+        function calculateTotalProfits() {
+            const profitByToken = {};
+
+            transactions.forEach(transaction => {
+                const token = transaction.tokenname;
+                const totalProfit = parseFloat(transaction.profitInUsdt); // Assuming profit is in 'profitInUsdt'
+
+                if (profitByToken[token]) {
+                    profitByToken[token] += totalProfit; // Add profit to existing token total
+                } else {
+                    profitByToken[token] = totalProfit; // Initialize with the current transaction's profit
+                }
+            });
+
+            return profitByToken;
+        }
+
+        // Function to get token with highest and lowest total profit
+        function getHighestAndLowestProfitTokens() {
+            const profitByToken = calculateTotalProfits();
+
+            let highestProfitToken = null;
+            let lowestProfitToken = null;
+
+            // Initialize with the first token in the object
+            for (const token in profitByToken) {
+                if (highestProfitToken === null || profitByToken[token] > profitByToken[highestProfitToken]) {
+                    highestProfitToken = token;
+                }
+                if (lowestProfitToken === null || profitByToken[token] < profitByToken[lowestProfitToken]) {
+                    lowestProfitToken = token;
+                }
+            }
+
+            return {
+                highestProfitToken,
+                highestProfit: profitByToken[highestProfitToken],
+                lowestProfitToken,
+                lowestProfit: profitByToken[lowestProfitToken]
+            };
+        }
+
+        async function displayHighestAndLowestProfits() {
+            // Ensure transactions are populated
+            if (!transactions || transactions.length === 0) {
+                console.log('No transactions available.');
+                return;
+            }
+
+            const { highestProfitToken, highestProfit, lowestProfitToken, lowestProfit } = getHighestAndLowestProfitTokens();
+
+            // Update the HTML with the highest and lowest profit tokens
+            document.getElementById('highestProfitToken').textContent = `Token: ${highestProfitToken}`;
+            document.getElementById('highestProfitAmount').textContent = `Profit: ${highestProfit} USDT`;
+
+            document.getElementById('lowestProfitToken').textContent = `Token: ${lowestProfitToken}`;
+            document.getElementById('lowestProfitAmount').textContent = `Profit: ${lowestProfit} USDT`;
+        }
+
+
+
+
+
+        // Chart.js chart instance
+        const ctx = document.getElementById('profitChart').getContext('2d');
+        const profitChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], // Dates will go here
+                datasets: [{
+                    label: 'Profit in USDT',
+                    data: [], // Profit values will go here
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    fill: true,
+                }],
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (tooltipItem) {
+                                return '$' + tooltipItem.raw.toFixed(2);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            maxRotation: 0, // No rotation
+                            minRotation: 0, // No rotation
+                            autoSkip: false, // Skips overlapping labels
+                            maxTicksLimit: 10, // Limit the number of ticks
+                        },
+                    },
+                },
+            },
+        });
+
+
+        document.getElementById('refreshButton').addEventListener('click', fetchTransactions);
+        // Fetch transactions from API or file
+        async function fetchTransactions() {
+            const response = await fetch('/api/transactions');  // Adjust to your actual file path
+            const data = await response.json();
+            transactions = data;
+            totalPages = Math.ceil(transactions.length / rowsPerPage);
+            calculateTotalProfit();
+            renderTable(currentPage);
+            displayHighestAndLowestProfits();
+            updateChart();
+        }
+
+
+        // Calculate the total profit in USDT and track the increase over time
+        function calculateTotalProfit() {
+            totalProfitInUsdt = 0;
+            profitOverTime = [];  // Reset chart data for new calculations
+
+            transactions.forEach((transaction, index) => {
+                totalProfitInUsdt += parseFloat(transaction.profitInUsdt);
+                // Record the cumulative profit for the chart
+                profitOverTime.push({ date: transaction.timestamp, profit: totalProfitInUsdt });
+            });
+
+            totalProfitElement.textContent = totalProfitInUsdt.toFixed(2); // Update the card with total profit
+        }
+
+        function countKeyTimestamps() {
+            let keyTimestampCount = 0;
+
+            // Iterate through all transactions and count the key timestamps
+            profitOverTime.forEach((entry, index) => {
+                const prevDate = index > 0 ? profitOverTime[index - 1].date : null;
+
+                if (isKeyTimestamp(prevDate, entry.date)) {
+                    keyTimestampCount++; // Increment count if it's a key timestamp
+                }
+            });
+
+            console.log(`Number of key timestamps: ${keyTimestampCount}`);
+            return keyTimestampCount + 13;
+        }
+        function updateChart() {
+            const labels = [];
+            const data = [];
+
+            const keyTimestamps = []; // Array to store key timestamps
+            const regularTimestamps = []; // Array to store regular timestamps
+
+            // Identify key timestamps based on transaction timestamps
+            profitOverTime.forEach((entry, index) => {
+                const prevDate = index > 0 ? profitOverTime[index - 1].date : null;
+                const currentDate = entry.date;
+
+                // Always add key timestamps (significant time transitions like year, month, day)
+                if (!prevDate || isKeyTimestamp(prevDate, currentDate)) {
+                    keyTimestamps.push({ timestamp: currentDate, profit: entry.profit });
+                }
+            });
+
+            // Now add regular transaction timestamps, while ensuring spacing
+            profitOverTime.forEach((entry, index) => {
+                const timestamp = entry.date;
+
+                // Add regular transaction timestamps only if they are not too close to key timestamps
+                if (!keyTimestamps.some(item => item.timestamp === timestamp)) {
+                    regularTimestamps.push({ timestamp: timestamp, profit: entry.profit });
+                }
+            });
+
+            // Limit the total number of timestamps to 10
+            const maxLabels = 10;
+            const totalTimestamps = keyTimestamps.length + regularTimestamps.length;
+            const step = Math.ceil(totalTimestamps / maxLabels);
+
+            // Merge the key timestamps and regular timestamps, ensuring no overlap
+            const allTimestamps = [...keyTimestamps, ...regularTimestamps];
+            const selectedTimestamps = [];
+
+            allTimestamps.forEach((timestampData, index) => {
+                // Add the first and last timestamps, and spread others evenly based on the step
+                if (index === 0 || index === totalTimestamps - 1 || index % step === 0) {
+                    selectedTimestamps.push(timestampData);
+                }
+            });
+
+            // Create labels with key timestamps and regular timestamps, and corresponding profits
+            selectedTimestamps.forEach((timestampData, index) => {
+                const prevDate = index > 0 ? selectedTimestamps[index - 1].timestamp : null;
+                labels.push(formatTimestamp(prevDate, timestampData.timestamp)); // Format each timestamp for display
+                data.push(timestampData.profit); // Add corresponding profit data
+            });
+
+            // Update the chart with the new labels and data
+            profitChart.data.labels = labels;
+            profitChart.data.datasets[0].data = data;
+            profitChart.update(); // Refresh the chart with the new data
+        }
+
+        // Function to determine if a timestamp marks a key transition (year, month, day)
+        function isKeyTimestamp(prevDate, currentDate) {
+            const prev = moment(prevDate);
+            const curr = moment(currentDate);
+
+            return (
+                prev.year() !== curr.year() || // Year change
+                prev.month() !== curr.month() || // Month change
+                prev.date() !== curr.date() // Day change
+            );
+        }
+
+        // Improved formatTimestamp function
+        function formatTimestamp(prevDate, currentDate) {
+            const time = moment(currentDate);
+
+            if (!prevDate || moment(prevDate).year() !== time.year()) {
+                return time.format("YYYY-MM-DD HH:mm:ss");
+            } else if (moment(prevDate).month() !== time.month()) {
+                return time.format("MM-DD HH:mm:ss");
+            } else if (moment(prevDate).date() !== time.date()) {
+                return time.format("DD HH:mm:ss");
+            } else {
+                return time.format("HH:mm:ss");
+            }
+        }
+
+        let isDescending = true; // Keep track of the current sorting order
+
+        // Function to sort transactions based on the timestamp
+        function sortTransactions() {
+            transactions.sort((a, b) => {
+                const dateA = new Date(a.timestamp);
+                const dateB = new Date(b.timestamp);
+                return isDescending ? dateB - dateA : dateA - dateB;
+            });
+        }
+
+        // Render the transaction table with pagination
+        function renderTable(page) {
+            sortTransactions();
+            const startIndex = (page - 1) * rowsPerPage;
+            const endIndex = startIndex + rowsPerPage;
+            const currentTransactions = transactions.slice(startIndex, endIndex);
+
+            tableBody.innerHTML = ''; // Clear the table body
+
+            currentTransactions.forEach(transaction => {
+                const timee = moment(transaction.timestamp).format("YYYY-MM-DD HH:mm:ss");
+                const row = document.createElement('tr');
+                row.classList.add('hover:bg-blue-50');
+                row.innerHTML = `
+                    <td class="px-4 py-2 border-b border-gray-200">${transaction.tokenname}</td>
+                    <td class="px-4 py-2 border-b border-gray-200">${timee}</td>
+                    <td class="px-4 py-2 border-b border-gray-200">${transaction.fromDex}</td>
+                    <td class="px-4 py-2 border-b border-gray-200">${transaction.toDex}</td>
+                    <td class="px-4 py-2 border-b border-gray-200">${transaction.BNBamountIn}</td>
+                    <td class="px-4 py-2 border-b border-gray-200">${transaction.profitInUsdt}</td>
+                    <td class="px-4 py-2 border-b border-gray-200">${transaction.profitInToken}</td>
+                    <td class="px-4 py-2 border-b border-gray-200">${transaction.profitPer}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            pageNumber.textContent = `Page ${page}`;
+        }
+
+        // Change page function (pagination)
+        function changePage(direction) {
+            if (direction === 'next' && currentPage < totalPages) {
+                currentPage++;
+            } else if (direction === 'prev' && currentPage > 1) {
+                currentPage--;
+            }
+            renderTable(currentPage);
+        }
+
+        prevPageButton.addEventListener('click', () => changePage('prev'));
+        nextPageButton.addEventListener('click', () => changePage('next'));
+
+
+        // Initial data load
+        fetchTransactions();
+
+
+    </script>
+
+</body>
+
+</html>

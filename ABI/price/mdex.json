@@ -1,0 +1,66 @@
+[
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "factory",
+      "outputs": [{ "name": "", "type": "address" }],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "WETH",
+      "outputs": [{ "name": "", "type": "address" }],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": false,
+      "inputs": [
+        { "name": "amountIn", "type": "uint256" },
+        { "name": "amountOutMin", "type": "uint256" },
+        { "name": "path", "type": "address[]" },
+        { "name": "to", "type": "address" },
+        { "name": "deadline", "type": "uint256" }
+      ],
+      "name": "swapExactTokensForTokens",
+      "outputs": [{ "name": "amounts", "type": "uint256[]" }],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "constant": false,
+      "inputs": [
+        { "name": "amountIn", "type": "uint256" },
+        { "name": "amountOutMin", "type": "uint256" },
+        { "name": "path", "type": "address[]" },
+        { "name": "to", "type": "address" },
+        { "name": "deadline", "type": "uint256" }
+      ],
+      "name": "swapExactETHForTokens",
+      "outputs": [{ "name": "amounts", "type": "uint256[]" }],
+      "payable": true,
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "constant": false,
+      "inputs": [
+        { "name": "amountOut", "type": "uint256" },
+        { "name": "amountInMax", "type": "uint256" },
+        { "name": "path", "type": "address[]" },
+        { "name": "to", "type": "address" },
+        { "name": "deadline", "type": "uint256" }
+      ],
+      "name": "swapTokensForExactTokens",
+      "outputs": [{ "name": "amounts", "type": "uint256[]" }],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ]
+  
