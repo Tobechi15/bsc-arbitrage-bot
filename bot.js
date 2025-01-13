@@ -173,7 +173,7 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
           amountIn: amountInBNB,
           liquidityBNB: lowestAsk.liquidity.bnb,
           liquidityToken: lowestAsk.liquidity.token,
-          comment: `High slippage for ${token.symbol} on ${lowestAsk.dex}.`,
+          comment: `Insufficient liquidity for ${token.symbol} on ${lowestAsk.dex}.`,
         });
         continue;
       }
@@ -348,8 +348,8 @@ const sendToTelegramme = telegramLimiter.wrap(async (transaction) => {
     `toDex: ${transaction.toDex}\n` +
     `tokenAddress: ${transaction.tokenAddress}\n` +
     `amountInBNB: ${transaction.amountIn}\n` +
-    `liquidityBNB: ${transaction.liquidityBNB}`+
-    `liquidityToken: ${transaction.liquidityToken}`+
+    `liquidityBNB: ${transaction.liquidityBNB}\n`+
+    `liquidityToken: ${transaction.liquidityToken}\n`+
     `profit: ${transaction.profit}\n` +
     `profitBNB: ${transaction.profitBNB}\n` +
     `profitUSDT: ${transaction.profitUSDT}\n`+
