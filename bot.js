@@ -163,6 +163,18 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
           liquidityToken: lowestAsk.liquidity.token,
           comment: `Insufficient liquidity for ${token.symbol} on ${lowestAsk.dex}.`
         });
+        sendToTelegramme({
+          tokenName: token.symbol,
+          buyPrice: lowestAsk.ask,
+          sellPrice: highestBid.bid,
+          fromDex: lowestAsk.dex,
+          toDex: highestBid.dex,
+          tokenAddress: token.address,
+          amountIn: amountInBNB,
+          liquidityBNB: lowestAsk.liquidity.bnb,
+          liquidityToken: lowestAsk.liquidity.token,
+          comment: `High slippage for ${token.symbol} on ${lowestAsk.dex}.`,
+        });
         continue;
       }
 
@@ -181,6 +193,19 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
           liquidityBNB: lowestAsk.liquidity.bnb,
           liquidityToken: lowestAsk.liquidity.token,
           comment: `High slippage for ${token.symbol} on ${lowestAsk.dex}.`
+          
+        });
+        sendToTelegramme({
+          tokenName: token.symbol,
+          buyPrice: lowestAsk.ask,
+          sellPrice: highestBid.bid,
+          fromDex: lowestAsk.dex,
+          toDex: highestBid.dex,
+          tokenAddress: token.address,
+          amountIn: amountInBNB,
+          liquidityBNB: lowestAsk.liquidity.bnb,
+          liquidityToken: lowestAsk.liquidity.token,
+          comment: `High slippage for ${token.symbol} on ${lowestAsk.dex}.`,
         });
         continue;
       }
@@ -208,6 +233,22 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
           amountIn: amountInBNB,
           liquidityBNB: lowestAsk.liquidity.bnb,
           liquidityToken: lowestAsk.liquidity.token,
+          comment: `Low profitability for ${token.symbol}.`
+        });
+        sendToTelegramme({
+          tokenName: token.symbol,
+          buyPrice: lowestAsk.ask,
+          sellPrice: highestBid.bid,
+          fromDex: lowestAsk.dex,
+          toDex: highestBid.dex,
+          tokenAddress: token.address,
+          amountIn: amountInBNB,
+          liquidityBNB: lowestAsk.liquidity.bnb,
+          liquidityToken: lowestAsk.liquidity.token,
+          profit,
+          profitBNB,
+          profitUSDT,
+          gasFee,
           comment: `Low profitability for ${token.symbol}.`
         });
         continue;
@@ -311,7 +352,8 @@ const sendToTelegramme = telegramLimiter.wrap(async (transaction) => {
     `liquidityToken: ${transaction.liquidityToken}`+
     `profit: ${transaction.profit}\n` +
     `profitBNB: ${transaction.profitBNB}\n` +
-    `profitUSDT: ${transaction.profitUSDT}\n`;
+    `profitUSDT: ${transaction.profitUSDT}\n`+
+    `comment: ${transaction.comment}\n`;
 
   try {
     await bot.sendMessage(TELEGRAM_CHAT_ID, message, {
@@ -324,60 +366,24 @@ const sendToTelegramme = telegramLimiter.wrap(async (transaction) => {
 
 // Bot loop
 async function startBot() {
-  let matchedTokens = [      {
-    "address": "0x2859e4544C4bB03966803b044A93563Bd2D0DD4D",
-    "decimals": 9,
-    "lastTradeUnixTime": 1726679251,
-    "liquidity": 7027121030.361493,
-    "logoURI": "https://img.fotofolio.xyz/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsolana-labs%2Ftoken-list%2Fmain%2Fassets%2Fmainnet%2FSo11111111111111111111111111111111111111112%2Flogo.png",
-    "mc": 75217627246.4999,
-    "name": "Shib inu",
-    "symbol": "SHIB",
-    "v24hChangePercent": -6.4865412491445245,
-    "v24hUSD": 753340393.0850035
-  },
-  {
-    "address": "0x4AD663403df2F0E7987bC9C74561687472e1611C",
-    "decimals": 6,
-    "lastTradeUnixTime": 1726679250,
-    "liquidity": 3507793000.4033475,
-    "logoURI": "https://img.fotofolio.xyz/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsolana-labs%2Ftoken-list%2Fmain%2Fassets%2Fmainnet%2FEPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v%2Flogo.png",
-    "mc": 2973865527.5120635,
-    "name": "FROG",
-    "symbol": "FROG",
-    "v24hChangePercent": -20.022827653450364,
-    "v24hUSD": 364654013.9369947
-  },
-  {
-    "address": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-    "decimals": 6,
-    "lastTradeUnixTime": 1726679250,
-    "liquidity": 3507793000.4033475,
-    "logoURI": "https://img.fotofolio.xyz/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsolana-labs%2Ftoken-list%2Fmain%2Fassets%2Fmainnet%2FEPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v%2Flogo.png",
-    "mc": 2973865527.5120635,
-    "name": "USD Coin",
-    "symbol": "USDC",
-    "v24hChangePercent": -20.022827653450364,
-    "v24hUSD": 364654013.9369947
-  }
-]; // Initialize an empty array for tokens
+  let matchedTokens = []; // Initialize an empty array for tokens
   let lastFetchTime = 0; // Track the last fetch time
   const FETCH_INTERVAL = 24 * 60 * 60 * 1000; // 12 hours in milliseconds
 
   while (true) {
-    // const currentTime = Date.now();
+    const currentTime = Date.now();
 
-    // // Check if it's time to fetch new tokens
-    // if (currentTime - lastFetchTime >= FETCH_INTERVAL || matchedTokens.length === 0) {
-    //   console.log("Fetching potential tokens...");
-    //   try {
-    //     matchedTokens = await fetchPotentialTokens(); // Fetch matched tokens
-    //     lastFetchTime = currentTime; // Update the last fetch time
-    //     console.log(`Fetched ${matchedTokens.length} tokens.`);
-    //   } catch (error) {
-    //     console.error("Error fetching tokens:", error.message);
-    //   }
-    // }
+    // Check if it's time to fetch new tokens
+    if (currentTime - lastFetchTime >= FETCH_INTERVAL || matchedTokens.length === 0) {
+      console.log("Fetching potential tokens...");
+      try {
+        matchedTokens = await fetchPotentialTokens(); // Fetch matched tokens
+        lastFetchTime = currentTime; // Update the last fetch time
+        console.log(`Fetched ${matchedTokens.length} tokens.`);
+      } catch (error) {
+        console.error("Error fetching tokens:", error.message);
+      }
+    }
 
     if (matchedTokens.length > 0) {
       try {
