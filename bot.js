@@ -24,6 +24,27 @@ const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: false });
 const routers = require('./ABI/router/router.js');
 const { FACTORY_ABI, PAIR_ABI } = require('./ABI/liquidity/liquidityAbi.js');
 
+const appUrl = `https://bsc-arbitrage-bot.onrender.com`; // Replace with your Render app URL
+// Set up an HTTP server for port listening
+const PORT = 10000; // Use the PORT environment variable or default to 3000
+
+http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("Bot is running...\n");
+}).listen(PORT, () => {
+  console.log(`Server is listening on port ${PORT}`);
+});
+
+setInterval(async () => {
+  console.log("Attempting to ping the app...");
+  try {
+    await axios.get(appUrl);
+    console.log("Pinged the app to keep it awake.");
+  } catch (error) {
+    console.error("Error pinging the app:", error.message);
+  }
+}, 15 * 60 * 1000); // Ping every 5 minutes
+
 // Function to fetch the current price of a token in BNB and USDT
 const getTokenPrices = async (tokenAddress) => {
   try {
@@ -103,7 +124,7 @@ async function getPrice(dexName, tokenAddress, amountInBNB) {
     const tokenLiquidity = web3.utils.fromWei(tokenReserve, "ether");
     const bnbLiquidity = web3.utils.fromWei(bnbReserve, "ether");
 
-    console.log(dexName, 'bid: ',parseFloat(bidPrice), 'ask: ',parseFloat(askPrice), 'token liquidity: ',parseFloat(tokenLiquidity), 'bnb liquidity',parseFloat(bnbLiquidity),)
+    console.log(dexName, 'bid: ', parseFloat(bidPrice), 'ask: ', parseFloat(askPrice), 'token liquidity: ', parseFloat(tokenLiquidity), 'bnb liquidity', parseFloat(bnbLiquidity),)
     return {
       dex: dexName,
       bid: parseFloat(bidPrice),
@@ -124,6 +145,7 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
   const results = [];
   const slippageTolerance = 0.02; // 2% slippage tolerance
   const minLiquidityFactor = 100; // Minimum liquidity factor
+  console.log(`yeet`);
   const gasPrice = await web3.eth.getGasPrice(); // Fetch current gas price in wei
   const estimatedGasLimit = 200000; // Estimated gas limit for a trade (adjust as needed)
 
@@ -194,7 +216,7 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
           liquidityBNB: lowestAsk.liquidity.bnb,
           liquidityToken: lowestAsk.liquidity.token,
           comment: `High slippage for ${token.symbol} on ${lowestAsk.dex}.`
-          
+
         });
         sendToTelegramme({
           tokenName: token.symbol,
@@ -339,6 +361,54 @@ function logTransaction(transaction) {
   fs.writeFileSync(filePath, JSON.stringify(logData, null, 2));
 }
 
+function logTime(time) {
+  const logEntry = {
+    fetchTime: time
+  };
+
+  const filePath = './Logs/fetchTimeLogs.json';
+  let logData = [];
+  if (fs.existsSync(filePath)) {
+    logData = JSON.parse(fs.readFileSync(filePath, 'utf-8') || '[]');
+  }
+  logData.push(logEntry);
+  fs.writeFileSync(filePath, JSON.stringify(logData, null, 2));
+}
+async function fetchlastTime() {
+  const filePath = './Logs/fetchTimeLogs.json';
+  let logData = [];
+  if (fs.existsSync(filePath)) {
+    logData = JSON.parse(fs.readFileSync(filePath, 'utf-8') || '[]');
+  }
+
+  if (logData.length < 0) {
+    const logEntry = {
+      fetchTime: 0
+    };
+    logData.push(logEntry);
+    fs.writeFileSync(filePath, JSON.stringify(logData, null, 2));
+  }
+
+  if (logData.length > 0) {
+    const last = logData[logData.length - 1].fetchTime;
+    return last;
+  }
+}
+
+function fetchlastToken() {
+  const filePath = './Logs/tokens.json';
+  let token = [];
+  if (fs.existsSync(filePath)) {
+    token = JSON.parse(fs.readFileSync(filePath, 'utf-8') || '[]');
+  }
+  return token;
+}
+function logToken(tokens) {
+  const filePath = './Logs/tokens.json';
+  let logData = tokens;
+  fs.writeFileSync(filePath, JSON.stringify(logData, null, 2));
+}
+
 const sendToTelegramme = telegramLimiter.wrap(async (transaction) => {
   const message =
     `tokenName: ${transaction.tokenName}\n` +
@@ -349,11 +419,11 @@ const sendToTelegramme = telegramLimiter.wrap(async (transaction) => {
     `toDex: ${transaction.toDex}\n` +
     `tokenAddress: ${transaction.tokenAddress}\n` +
     `amountInBNB: ${transaction.amountIn}\n` +
-    `liquidityBNB: ${transaction.liquidityBNB}\n`+
-    `liquidityToken: ${transaction.liquidityToken}\n`+
+    `liquidityBNB: ${transaction.liquidityBNB}\n` +
+    `liquidityToken: ${transaction.liquidityToken}\n` +
     `profit: ${transaction.profit}\n` +
     `profitBNB: ${transaction.profitBNB}\n` +
-    `profitUSDT: ${transaction.profitUSDT}\n`+
+    `profitUSDT: ${transaction.profitUSDT}\n` +
     `comment: ${transaction.comment}\n`;
 
   try {
@@ -367,8 +437,8 @@ const sendToTelegramme = telegramLimiter.wrap(async (transaction) => {
 
 // Bot loop
 async function startBot() {
-  let matchedTokens = []; // Initialize an empty array for tokens
-  let lastFetchTime = 0; // Track the last fetch time
+  let matchedTokens = fetchlastToken(); // Initialize an empty array for tokens
+  let lastFetchTime = await fetchlastTime(); // Track the last fetch time
   const FETCH_INTERVAL = 24 * 60 * 60 * 1000; // 12 hours in milliseconds
 
   while (true) {
@@ -379,7 +449,8 @@ async function startBot() {
       console.log("Fetching potential tokens...");
       try {
         matchedTokens = await fetchPotentialTokens(); // Fetch matched tokens
-        lastFetchTime = currentTime; // Update the last fetch time
+        logToken(matchedTokens);
+        lastFetchTime = logTime(currentTime); // Update the last fetch time
         console.log(`Fetched ${matchedTokens.length} tokens.`);
       } catch (error) {
         console.error("Error fetching tokens:", error.message);
@@ -417,13 +488,7 @@ async function startBot() {
     await new Promise(resolve => setTimeout(resolve, 20000));
   }
 }
-// Set up an HTTP server for port listening
-const PORT = 10000; // Use the PORT environment variable or default to 3000
-http.createServer((req, res) => {
-  res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("Bot is running...\n");
-}).listen(PORT, () => {
-  console.log(`Server is listening on port ${PORT}`);
-});
 
-startBot();
+startBot().catch(error => {
+  console.error("Error starting bot:", error);
+});

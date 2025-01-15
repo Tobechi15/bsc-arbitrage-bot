@@ -55,6 +55,20 @@ const routers = {
             address: '0x0eb58E5c8aA63314ff5547289185cC4583DfCBD5', // apeswap Factory Address
         },
     },
+    squadswap: {
+        address: '0x8507743C30Ae007ab2ad8523b52F6a1D5155611c',
+        abi: PANCAKESWAP_ROUTER_ABI,
+        factory: {
+            address: '0x1D9F43a6195054313ac1aE423B1f810f593b6ac1', // apeswap Factory Address
+        },
+    },
+    mdex: {
+        address: '0x7DAe51BD3E3376B8c7c4900E9107f12Be3AF1bA8',
+        abi: PANCAKESWAP_ROUTER_ABI,
+        factory: {
+            address: '0x3cd1c46068daea5ebb0d3f55f6915b10648062b8', // apeswap Factory Address
+        },
+    },
     // Add other DEXes similarly
 };
 
