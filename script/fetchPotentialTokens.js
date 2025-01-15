@@ -128,7 +128,7 @@ const main = async () => {
       //     `[View Token on Explorer](${token.logoURI})\n`
       //   );
       // }
-      await sendToTelegram(filteredTokens); // Wait for Telegram messages to complete
+      // await sendToTelegram(filteredTokens); // Wait for Telegram messages to complete
       matchedTokens.push(...filteredTokens); // Add to matchedTokens array
     } else {
       console.log("No tokens met the criteria.");

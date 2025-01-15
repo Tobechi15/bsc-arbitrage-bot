@@ -196,6 +196,7 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
           amountIn: amountInBNB,
           liquidityBNB: lowestAsk.liquidity.bnb,
           liquidityToken: lowestAsk.liquidity.token,
+          link: token.logoURI,
           comment: `Insufficient liquidity for ${token.symbol} on ${lowestAsk.dex}.`,
         });
         continue;
@@ -228,6 +229,7 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
           amountIn: amountInBNB,
           liquidityBNB: lowestAsk.liquidity.bnb,
           liquidityToken: lowestAsk.liquidity.token,
+          link: token.logoURI,
           comment: `High slippage for ${token.symbol} on ${lowestAsk.dex}.`,
         });
         continue;
@@ -272,6 +274,7 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
           profitBNB,
           profitUSDT,
           gasFee,
+          link: token.logoURI,
           comment: `Low profitability for ${token.symbol}.`
         });
         continue;
@@ -322,6 +325,7 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
         profitBNB,
         profitUSDT,
         gasFee,
+        link: token.logoURI,
         comment: 'profit',
       });
     } else {
@@ -349,6 +353,7 @@ function logTransaction(transaction) {
     profit: transaction?.profit,
     profitBNB: transaction?.profitBNB,
     profitUSDT: transaction?.profitUSDT,
+    link: transaction?.link,
     comment: transaction?.comment,
   };
 
@@ -435,11 +440,25 @@ const sendToTelegramme = telegramLimiter.wrap(async (transaction) => {
   }
 });
 
+const sendMessageTelegramme = telegramLimiter.wrap(async (message) => {
+  try {
+    await bot.sendMessage(TELEGRAM_CHAT_ID, message, {
+      parse_mode: "Markdown",
+    });
+  } catch (err) {
+    console.error("Error sending message to Telegram:", err.message);
+  }
+})
 // Bot loop
 async function startBot() {
   let matchedTokens = fetchlastToken(); // Initialize an empty array for tokens
   let lastFetchTime = await fetchlastTime(); // Track the last fetch time
   const FETCH_INTERVAL = 24 * 60 * 60 * 1000; // 12 hours in milliseconds
+
+  const greet = `welcome to Tobechi DEX Screener bot🙋‍♂️ \n` +
+                `happy trading👋`;
+                
+  sendMessageTelegramme(greet);
 
   while (true) {
     const currentTime = Date.now();
@@ -451,7 +470,9 @@ async function startBot() {
         matchedTokens = await fetchPotentialTokens(); // Fetch matched tokens
         logToken(matchedTokens);
         lastFetchTime = logTime(currentTime); // Update the last fetch time
-        console.log(`Fetched ${matchedTokens.length} tokens.`);
+        const mess = `Fetched ${matchedTokens.length} tokens.`;
+        console.log(mess);
+        sendMessageTelegramme(mess);
       } catch (error) {
         console.error("Error fetching tokens:", error.message);
       }
