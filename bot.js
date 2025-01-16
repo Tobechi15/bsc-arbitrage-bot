@@ -43,7 +43,7 @@ setInterval(async () => {
   } catch (error) {
     console.error("Error pinging the app:", error.message);
   }
-}, 15 * 60 * 1000); // Ping every 5 minutes
+}, 5 * 60 * 1000); // Ping every 5 minutes
 
 // Function to fetch the current price of a token in BNB and USDT
 const getTokenPrices = async (tokenAddress) => {
