@@ -140,12 +140,10 @@ async function getPrice(dexName, tokenAddress, amountInBNB) {
   }
 }
 
-// Main arbitrage logic
 async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
   const results = [];
   const slippageTolerance = 0.02; // 2% slippage tolerance
-  const minLiquidityFactor = 100; // Minimum liquidity factor
-  console.log(`yeet`);
+  const minLiquidityFactor = 0.1; // Use 10% of available liquidity
   const gasPrice = await web3.eth.getGasPrice(); // Fetch current gas price in wei
   const estimatedGasLimit = 200000; // Estimated gas limit for a trade (adjust as needed)
 
@@ -153,7 +151,6 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
     console.log(`Scanning token: ${token.symbol}`);
     console.log(`Token address: ${token.address}`);
 
-    // Fetch token prices from all DEXs
     const prices = [];
     for (const dexName of Object.keys(routers)) {
       const price = await getPrice(dexName, token.address, amountInBNB);
@@ -162,180 +159,101 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
       }
     }
 
-    // Find the lowest ask and highest bid across all DEXs
-    const lowestAsk = prices.reduce((min, p) => (p.ask < min.ask ? p : min), prices[0]);
-    const highestBid = prices.reduce((max, p) => (p.bid > max.bid ? p : max), prices[0]);
+    let foundOpportunity = false;
 
-    // Ensure there is an arbitrage opportunity
-    if (lowestAsk && highestBid && highestBid.bid > lowestAsk.ask) {
-      // Liquidity Check
-      if (
-        lowestAsk.liquidity.token < amountInBNB * minLiquidityFactor ||
-        lowestAsk.liquidity.bnb < amountInBNB * minLiquidityFactor
-      ) {
-        console.log(`Insufficient liquidity for ${token.symbol} on ${lowestAsk.dex}.`);
-        logTransaction({
-          tokenName: token.symbol,
-          buyPrice: lowestAsk.ask,
-          sellPrice: highestBid.bid,
-          fromDex: lowestAsk.dex,
-          toDex: highestBid.dex,
-          tokenAddress: token.address,
-          amountIn: amountInBNB,
-          liquidityBNB: lowestAsk.liquidity.bnb,
-          liquidityToken: lowestAsk.liquidity.token,
-          comment: `Insufficient liquidity for ${token.symbol} on ${lowestAsk.dex}.`
-        });
-        sendToTelegramme({
-          tokenName: token.symbol,
-          buyPrice: lowestAsk.ask,
-          sellPrice: highestBid.bid,
-          fromDex: lowestAsk.dex,
-          toDex: highestBid.dex,
-          tokenAddress: token.address,
-          amountIn: amountInBNB,
-          liquidityBNB: lowestAsk.liquidity.bnb,
-          liquidityToken: lowestAsk.liquidity.token,
-          link: token.logoURI,
-          comment: `Insufficient liquidity for ${token.symbol} on ${lowestAsk.dex}.`,
-        });
-        continue;
+    for (const buyExchange of prices) {
+      for (const sellExchange of prices) {
+        if (buyExchange.dex === sellExchange.dex) continue; // Skip if both exchanges are the same
+
+        // Calculate the tradeable amount based on liquidity constraints
+        const maxBuyableBNB = buyExchange.liquidity.bnb * minLiquidityFactor;
+        const maxSellableToken = sellExchange.liquidity.token * minLiquidityFactor;
+        const tradeableBNB = Math.min(amountInBNB, maxBuyableBNB, maxSellableToken / buyExchange.ask);
+
+        if (tradeableBNB <= 0) {
+          console.log(`Tradeable BNB is insufficient for ${token.symbol} between ${buyExchange.dex} and ${sellExchange.dex}.`);
+          continue;
+        }
+
+        // Simulate the trade
+        const tokenReceived = tradeableBNB / buyExchange.ask;
+        const bnbReceived = tokenReceived * sellExchange.bid;
+
+        // Calculate the profit
+        const profitBNB = bnbReceived - tradeableBNB;
+        const gasFee = Number((gasPrice * BigInt(estimatedGasLimit)) / BigInt(1e18)); // Gas fee in BNB
+        const slippageCost = tradeableBNB * slippageTolerance;
+        const totalFees = gasFee + slippageCost;
+
+        // Check if the profit exceeds fees
+        if (profitBNB > totalFees) {
+          foundOpportunity = true;
+
+          // Calculate profitability in USDT
+          const { priceInBNB, priceInUSDT } = await getTokenPrices(token.address);
+          const profitUSDT = profitBNB * priceInUSDT;
+          
+
+          // Log the profitable trade
+          console.log(`Arbitrage opportunity found for ${token.symbol}!`);
+          results.push({
+            token: token.symbol,
+            buyFrom: buyExchange.dex,
+            sellTo: sellExchange.dex,
+            buyPrice: buyExchange.ask,
+            sellPrice: sellExchange.bid,
+            tradeableBNB,
+            profitBNB: profitBNB.toFixed(6),
+            profitUSDT: profitUSDT.toFixed(6),
+            gasFee: gasFee.toFixed(6),
+            slippageCost: slippageCost.toFixed(6),
+          });
+
+          
+
+          logTransaction({
+            tokenName: token.symbol,
+            buyPrice: buyExchange.ask,
+            sellPrice: sellExchange.bid,
+            fromDex: buyExchange.dex,
+            toDex: sellExchange.dex,
+            tokenAddress: token.address,
+            amountIn: tradeableBNB,
+            liquidityBNB: buyExchange.liquidity.bnb,
+            liquidityToken: sellExchange.liquidity.token,
+            profit: profitBNB.toFixed(6),
+            profitUSDT: profitUSDT.toFixed(6),
+            gasFee: gasFee.toFixed(6),
+            comment: 'Profitable trade found',
+          });
+
+          sendToTelegramme({
+            tokenName: token.symbol,
+            buyPrice: buyExchange.ask,
+            sellPrice: sellExchange.bid,
+            fromDex: buyExchange.dex,
+            toDex: sellExchange.dex,
+            tokenAddress: token.address,
+            amountIn: tradeableBNB,
+            liquidityBNB: buyExchange.liquidity.bnb,
+            liquidityToken: sellExchange.liquidity.token,
+            profit: profitBNB.toFixed(6),
+            profitUSDT: profitUSDT.toFixed(6),
+            gasFee: gasFee.toFixed(6),
+            link: token.logoURI,
+            comment: 'Profitable trade found',
+          });
+        }
       }
+    }
 
-      // Price Impact and Slippage Check
-      const priceImpact = (amountInBNB / lowestAsk.liquidity.token) * 100;
-      if (priceImpact > slippageTolerance * 100) {
-        console.log(`High slippage for ${token.symbol} on ${lowestAsk.dex}.`);
-        logTransaction({
-          tokenName: token.symbol,
-          buyPrice: lowestAsk.ask,
-          sellPrice: highestBid.bid,
-          fromDex: lowestAsk.dex,
-          toDex: highestBid.dex,
-          tokenAddress: token.address,
-          amountIn: amountInBNB,
-          liquidityBNB: lowestAsk.liquidity.bnb,
-          liquidityToken: lowestAsk.liquidity.token,
-          comment: `High slippage for ${token.symbol} on ${lowestAsk.dex}.`
-
-        });
-        sendToTelegramme({
-          tokenName: token.symbol,
-          buyPrice: lowestAsk.ask,
-          sellPrice: highestBid.bid,
-          fromDex: lowestAsk.dex,
-          toDex: highestBid.dex,
-          tokenAddress: token.address,
-          amountIn: amountInBNB,
-          liquidityBNB: lowestAsk.liquidity.bnb,
-          liquidityToken: lowestAsk.liquidity.token,
-          link: token.logoURI,
-          comment: `High slippage for ${token.symbol} on ${lowestAsk.dex}.`,
-        });
-        continue;
-      }
-
-      // Fetch the token price in BNB and USDT
-      const { priceInBNB, priceInUSDT } = await getTokenPrices(token.address);
-
-      // Calculate Profitability
-      const profit = (highestBid.bid - lowestAsk.ask) * amountInBNB;
-      const gasFee = (gasPrice * estimatedGasLimit) / 1e18; // Convert wei to BNB
-      const profitBNB = profit * priceInBNB;
-      const profitUSDT = profit * priceInUSDT;
-
-      // Ensure profit is greater than transaction costs
-      const transactionCost = gasFee + (priceImpact * amountInBNB);
-      if (profit <= transactionCost) {
-        console.log(`Low profitability for ${token.symbol}.`);
-        logTransaction({
-          tokenName: token.symbol,
-          buyPrice: lowestAsk.ask,
-          sellPrice: highestBid.bid,
-          fromDex: lowestAsk.dex,
-          toDex: highestBid.dex,
-          tokenAddress: token.address,
-          amountIn: amountInBNB,
-          liquidityBNB: lowestAsk.liquidity.bnb,
-          liquidityToken: lowestAsk.liquidity.token,
-          comment: `Low profitability for ${token.symbol}.`
-        });
-        sendToTelegramme({
-          tokenName: token.symbol,
-          buyPrice: lowestAsk.ask,
-          sellPrice: highestBid.bid,
-          fromDex: lowestAsk.dex,
-          toDex: highestBid.dex,
-          tokenAddress: token.address,
-          amountIn: amountInBNB,
-          liquidityBNB: lowestAsk.liquidity.bnb,
-          liquidityToken: lowestAsk.liquidity.token,
-          profit,
-          profitBNB,
-          profitUSDT,
-          gasFee,
-          link: token.logoURI,
-          comment: `Low profitability for ${token.symbol}.`
-        });
-        continue;
-      }
-
-      // Log and report the arbitrage opportunity
-      console.log(`Arbitrage opportunity found for ${token.symbol}!`);
-      results.push({
-        token: token.symbol,
-        buyFrom: lowestAsk.dex,
-        sellTo: highestBid.dex,
-        buyPrice: lowestAsk.ask,
-        sellPrice: highestBid.bid,
-        profit: profit.toFixed(6),
-        profitBNB,
-        profitUSDT,
-        gasFee,
-      });
-
-      logTransaction({
-        tokenName: token.symbol,
-        buyPrice: lowestAsk.ask,
-        sellPrice: highestBid.bid,
-        fromDex: lowestAsk.dex,
-        toDex: highestBid.dex,
-        tokenAddress: token.address,
-        amountIn: amountInBNB,
-        liquidityBNB: lowestAsk.liquidity.bnb,
-        liquidityToken: lowestAsk.liquidity.token,
-        profit,
-        profitBNB,
-        profitUSDT,
-        gasFee,
-        comment: 'profit',
-      });
-
-      sendToTelegramme({
-        tokenName: token.symbol,
-        buyPrice: lowestAsk.ask,
-        sellPrice: highestBid.bid,
-        fromDex: lowestAsk.dex,
-        toDex: highestBid.dex,
-        tokenAddress: token.address,
-        amountIn: amountInBNB,
-        liquidityBNB: lowestAsk.liquidity.bnb,
-        liquidityToken: lowestAsk.liquidity.token,
-        profit,
-        profitBNB,
-        profitUSDT,
-        gasFee,
-        link: token.logoURI,
-        comment: 'profit',
-      });
-    } else {
+    if (!foundOpportunity) {
       console.log(`No arbitrage opportunity for ${token.symbol}.`);
     }
   }
 
   return results;
 }
-
 
 // Function to log transactions
 function logTransaction(transaction) {
@@ -467,7 +385,20 @@ async function startBot() {
     if (currentTime - lastFetchTime >= FETCH_INTERVAL || matchedTokens.length === 0) {
       console.log("Fetching potential tokens...");
       try {
-        matchedTokens = await fetchPotentialTokens(); // Fetch matched tokens
+        matchedTokens = [
+          {
+            "address": "0x2859e4544C4bB03966803b044A93563Bd2D0DD4D",
+            "decimals": 9,
+            "lastTradeUnixTime": 1726679251,
+            "liquidity": 7027121030.361493,
+            "logoURI": "https://img.fotofolio.xyz/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsolana-labs%2Ftoken-list%2Fmain%2Fassets%2Fmainnet%2FSo11111111111111111111111111111111111111112%2Flogo.png",
+            "mc": 75217627246.4999,
+            "name": "Wrapped SOL",
+            "symbol": "SOL",
+            "v24hChangePercent": -6.4865412491445245,
+            "v24hUSD": 753340393.0850035
+          },
+        ]//await fetchPotentialTokens(); // Fetch matched tokens
         logToken(matchedTokens);
         lastFetchTime = logTime(currentTime); // Update the last fetch time
         const mess = `Fetched ${matchedTokens.length} tokens.`;
