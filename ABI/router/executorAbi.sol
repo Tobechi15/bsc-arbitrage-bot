@@ -18,7 +18,7 @@ interface IERC20 {
     function approve(address spender, uint256 amount) external returns (bool);
 }
 
-contract ArbitrageExecutor {
+contract AtomicArbitrageExecutor {
     address public owner;
 
     modifier onlyOwner() {
@@ -42,12 +42,19 @@ contract ArbitrageExecutor {
     }
 
     function executeArbitrage(ArbitrageParams calldata params) external onlyOwner {
-        IERC20(params.pathDex1[0]).transferFrom(msg.sender, address(this), params.amountIn);
+        // Transfer tokens from the caller to the contract
+        require(
+            IERC20(params.pathDex1[0]).transferFrom(msg.sender, address(this), params.amountIn),
+            "Token transfer failed"
+        );
 
-        // Approve token transfer to dex1
-        IERC20(params.pathDex1[0]).approve(params.dex1, params.amountIn);
+        // Approve the input tokens for dex1
+        require(
+            IERC20(params.pathDex1[0]).approve(params.dex1, params.amountIn),
+            "Token approval for dex1 failed"
+        );
 
-        // Trade on dex1
+        // Execute the first swap on dex1
         uint256[] memory amountsDex1 = IDEX(params.dex1).swapExactTokensForTokens(
             params.amountIn,
             params.amountOutMinDex1,
@@ -59,10 +66,13 @@ contract ArbitrageExecutor {
         uint256 intermediateAmount = amountsDex1[amountsDex1.length - 1];
         require(intermediateAmount > 0, "Trade on dex1 failed");
 
-        // Approve token transfer to dex2
-        IERC20(params.pathDex2[0]).approve(params.dex2, intermediateAmount);
+        // Approve the intermediate tokens for dex2
+        require(
+            IERC20(params.pathDex2[0]).approve(params.dex2, intermediateAmount),
+            "Token approval for dex2 failed"
+        );
 
-        // Trade on dex2
+        // Execute the second swap on dex2
         uint256[] memory amountsDex2 = IDEX(params.dex2).swapExactTokensForTokens(
             intermediateAmount,
             params.amountOutMinDex2,
@@ -72,11 +82,13 @@ contract ArbitrageExecutor {
         );
 
         uint256 finalBalance = IERC20(params.pathDex2[params.pathDex2.length - 1]).balanceOf(params.beneficiary);
+
+        // Ensure the arbitrage is profitable
         require(finalBalance > params.amountIn, "Arbitrage not profitable");
     }
 
     function withdrawToken(address token, uint256 amount) external onlyOwner {
-        IERC20(token).transfer(owner, amount);
+        require(IERC20(token).transfer(owner, amount), "Token withdrawal failed");
     }
 
     function withdrawETH() external onlyOwner {

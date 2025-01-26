@@ -4,12 +4,14 @@ const axios = require("axios");
 const fs = require('fs');
 const TelegramBot = require("node-telegram-bot-api");
 const fetchPotentialTokens = require('./script/fetchPotentialTokens.js'); // Import the fetchPotentialTokens script
+const executeArbitrageTrade = require('./script/execute.js');
 const Bottleneck = require("bottleneck");
 const http = require("http");
 
 // Initialize Web3
 const web3 = new Web3(process.env.BSC_NODE_URL);
 const walletaddress = process.env.WALLET_ADDRESS;
+const privateKey = process.env.PRIVATE_KEY;
 
 const telegramLimiter = new Bottleneck({
   minTime: 33, // 30 messages per second for Telegram
@@ -45,6 +47,21 @@ setInterval(async () => {
   }
 }, 5 * 60 * 1000); // Ping every 5 minutes
 
+async function getWalletBalance(walletAddress) {
+  try {
+    // Get balance in Wei (BNB's smallest unit)
+    const balanceWei = await web3.eth.getBalance(walletAddress);
+
+    // Convert balance from Wei to BNB (1 BNB = 10^18 Wei)
+    const balanceBNB = web3.utils.fromWei(balanceWei, 'ether');
+    
+    console.log(`Wallet balance: ${balanceBNB} BNB`);
+    return balanceBNB;
+  } catch (error) {
+    console.error("Error fetching wallet balance:", error.message);
+    throw error;
+  }
+}
 // Function to fetch the current price of a token in BNB and USDT
 const getTokenPrices = async (tokenAddress) => {
   try {
@@ -111,7 +128,7 @@ async function getPrice(dexName, tokenAddress, amountInBNB) {
 
     // Calculate bid and ask prices
     const BID_amountsOut = await router.methods
-      .getAmountsOut(web3.utils.toWei(amountInBNB.toString(), "ether"), BID_path)
+      .getAmountsOut(web3.utils.toWei("1", "ether"), BID_path)
       .call();
     const ASK_amountsOut = await router.methods
       .getAmountsOut(web3.utils.toWei("1", "ether"), ASK_path)
@@ -127,6 +144,7 @@ async function getPrice(dexName, tokenAddress, amountInBNB) {
     console.log(dexName, 'bid: ', parseFloat(bidPrice), 'ask: ', parseFloat(askPrice), 'token liquidity: ', parseFloat(tokenLiquidity), 'bnb liquidity', parseFloat(bnbLiquidity),)
     return {
       dex: dexName,
+      dexADD: routerAddress,
       bid: parseFloat(bidPrice),
       ask: parseFloat(askPrice),
       liquidity: {
@@ -146,6 +164,7 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
   const minLiquidityFactor = 0.1; // Use 10% of available liquidity
   const gasPrice = await web3.eth.getGasPrice(); // Fetch current gas price in wei
   const estimatedGasLimit = 200000; // Estimated gas limit for a trade (adjust as needed)
+  const BNB_ADDRESS = "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"; // WBNB
 
   for (const token of tokensToScan) {
     console.log(`Scanning token: ${token.symbol}`);
@@ -209,8 +228,6 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
             slippageCost: slippageCost.toFixed(6),
           });
 
-          
-
           logTransaction({
             tokenName: token.symbol,
             buyPrice: buyExchange.ask,
@@ -237,12 +254,25 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
             amountIn: tradeableBNB,
             liquidityBNB: buyExchange.liquidity.bnb,
             liquidityToken: sellExchange.liquidity.token,
-            profit: profitBNB.toFixed(6),
+            profitBNB: profitBNB.toFixed(6),
             profitUSDT: profitUSDT.toFixed(6),
             gasFee: gasFee.toFixed(6),
             link: token.logoURI,
             comment: 'Profitable trade found',
           });
+
+          await executeArbitrageTrade(
+            contractAddress,
+            buyExchange.dexAdd,
+            sellExchange.dexADD,
+            BNB_ADDRESS,
+            token.address, // Assuming it's the same token being traded in both DEXes
+            tradeableBNB,
+            buyExchange.ask * (1 - slippageTolerance),
+            sellExchange.bid * (1 + slippageTolerance),
+            walletaddress,
+            privateKey
+          );
         }
       }
     }
@@ -346,6 +376,7 @@ const sendToTelegramme = telegramLimiter.wrap(async (transaction) => {
     `liquidityToken: ${transaction.liquidityToken}\n` +
     `profit: ${transaction.profit}\n` +
     `profitBNB: ${transaction.profitBNB}\n` +
+    `gasfee: ${transaction.gasFee}\n` +
     `profitUSDT: ${transaction.profitUSDT}\n` +
     `comment: ${transaction.comment}\n`;
 
@@ -370,7 +401,7 @@ const sendMessageTelegramme = telegramLimiter.wrap(async (message) => {
 // Bot loop
 async function startBot() {
   let matchedTokens = fetchlastToken(); // Initialize an empty array for tokens
-  let lastFetchTime = await fetchlastTime(); // Track the last fetch time
+  let lastFetchTime = 0; // Track the last fetch time
   const FETCH_INTERVAL = 24 * 60 * 60 * 1000; // 12 hours in milliseconds
 
   const greet = `welcome to Tobechi DEX Screener bot🙋‍♂️ \n` +
@@ -385,22 +416,9 @@ async function startBot() {
     if (currentTime - lastFetchTime >= FETCH_INTERVAL || matchedTokens.length === 0) {
       console.log("Fetching potential tokens...");
       try {
-        matchedTokens = [
-          {
-            "address": "0x2859e4544C4bB03966803b044A93563Bd2D0DD4D",
-            "decimals": 9,
-            "lastTradeUnixTime": 1726679251,
-            "liquidity": 7027121030.361493,
-            "logoURI": "https://img.fotofolio.xyz/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsolana-labs%2Ftoken-list%2Fmain%2Fassets%2Fmainnet%2FSo11111111111111111111111111111111111111112%2Flogo.png",
-            "mc": 75217627246.4999,
-            "name": "Wrapped SOL",
-            "symbol": "SOL",
-            "v24hChangePercent": -6.4865412491445245,
-            "v24hUSD": 753340393.0850035
-          },
-        ]//await fetchPotentialTokens(); // Fetch matched tokens
+        matchedTokens = await fetchPotentialTokens(); // Fetch matched tokens
         logToken(matchedTokens);
-        lastFetchTime = logTime(currentTime); // Update the last fetch time
+        lastFetchTime = currentTime; // Update the last fetch time
         const mess = `Fetched ${matchedTokens.length} tokens.`;
         console.log(mess);
         sendMessageTelegramme(mess);
@@ -426,7 +444,7 @@ async function startBot() {
           );
         }
 
-        const amountInBNB = 1; // BNB amount to trade
+        const amountInBNB = getWalletBalance(walletaddress); // BNB amount to trade
         console.log("Starting arbitrage scan...");
         await findArbitrageOpportunities(matchedTokens, amountInBNB);
       } catch (error) {

@@ -1,9 +1,9 @@
 const { Web3 } = require('web3');
-const ArbitrageExecutorABI = require("./ArbitrageExecutorABI.json");
+const ArbitrageExecutorABI = require("../ABI/router/abi.json");
 
 /**
- * Executes an arbitrage trade using the deployed ArbitrageExecutor contract.
- * @param {string} contractAddress - The address of the deployed ArbitrageExecutor contract.
+ * Executes an arbitrage trade using the deployed AtomicArbitrageExecutor contract.
+ * @param {string} contractAddress - The address of the deployed AtomicArbitrageExecutor contract.
  * @param {string} dex1 - Address of the first DEX router.
  * @param {string} dex2 - Address of the second DEX router.
  * @param {string} tokenIn - The token to swap from.
@@ -39,17 +39,20 @@ async function executeArbitrageTrade(
     const pathDex1 = [tokenIn, tokenOut];
     const pathDex2 = [tokenOut, tokenIn];
 
+    // Prepare ArbitrageParams object
+    const arbitrageParams = {
+      dex1: dex1,
+      dex2: dex2,
+      amountIn: amountInWei,
+      amountOutMinDex1: minOutDex1Wei,
+      amountOutMinDex2: minOutDex2Wei,
+      pathDex1: pathDex1,
+      pathDex2: pathDex2,
+      beneficiary: walletAddress
+    };
+
     // Create the transaction
-    const tx = arbitrageContract.methods.executeAtomicTrade(
-      dex1,
-      dex2,
-      amountInWei,
-      minOutDex1Wei,
-      minOutDex2Wei,
-      pathDex1,
-      pathDex2,
-      walletAddress
-    );
+    const tx = arbitrageContract.methods.executeArbitrage(arbitrageParams);
 
     // Estimate gas and fetch gas price
     const gas = await tx.estimateGas({ from: walletAddress });
