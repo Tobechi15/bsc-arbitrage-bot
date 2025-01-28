@@ -483,7 +483,7 @@ async function startBot() {
     }
 
     console.log("Waiting for 20 seconds before the next run...");
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await new Promise(resolve => setTimeout(resolve, 10000));
   }
 }
 
