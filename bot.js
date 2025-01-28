@@ -156,9 +156,13 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
   const estimatedGasLimit = 200000; // Estimated gas limit for a trade (adjust as needed)
   const BNB_ADDRESS = "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"; // WBNB
 
+  const gasFeeWei = gasPrice * BigInt(estimatedGasLimit);
+  const gasFee = web3.utils.fromWei(gasFeeWei.toString(), 'ether');
+
   for (const token of tokensToScan) {
     console.log(`Scanning token: ${token.symbol}`);
     console.log(`Token address: ${token.address}`);
+    console.log(`Gas price: ${gasFee}`);
 
     const prices = [];
     for (const dexName of Object.keys(routers)) {
@@ -190,8 +194,7 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
 
         // Calculate the profit
         const profitBNB = bnbReceived - tradeableBNB;
-        const gasFeeWei = gasPrice * BigInt(estimatedGasLimit);
-        const gasFee = web3.utils.fromWei(gasFeeWei.toString(), 'ether');
+
         const slippageCost = tradeableBNB * slippageTolerance;
         const totalFees = gasFee + slippageCost;
 
