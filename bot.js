@@ -466,7 +466,9 @@ async function startBot() {
           );
         }
 
-        const amountInBNB = getWalletBalance(walletaddress); // BNB amount to trade
+        const amountInBNB = await getWalletBalance(walletaddress); // BNB amount to trade
+        const bab = `current balance ${walletaddress} BNB`;
+        sendMessageTelegramme(bab);
         console.log("Starting arbitrage scan...");
         await findArbitrageOpportunities(matchedTokens, amountInBNB);
       } catch (error) {
