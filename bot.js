@@ -143,7 +143,7 @@ async function getPrice(dexName, tokenAddress, amountInBNB) {
       },
     };
   } catch (error) {
-    console.error(`Error fetching data from ${dexName}:`, error.message);
+    //console.error(`Error fetching data from ${dexName}:`, error.message);
     return null;
   }
 }
