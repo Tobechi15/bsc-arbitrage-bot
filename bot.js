@@ -131,7 +131,7 @@ async function getPrice(dexName, tokenAddress, amountInBNB) {
     const tokenLiquidity = web3.utils.fromWei(tokenReserve, "ether");
     const bnbLiquidity = web3.utils.fromWei(bnbReserve, "ether");
 
-    console.log(dexName, 'bid: ', parseFloat(bidPrice), 'ask: ', parseFloat(askPrice), 'token liquidity: ', parseFloat(tokenLiquidity), 'bnb liquidity', parseFloat(bnbLiquidity),)
+    //console.log(dexName, 'bid: ', parseFloat(bidPrice), 'ask: ', parseFloat(askPrice), 'token liquidity: ', parseFloat(tokenLiquidity), 'bnb liquidity', parseFloat(bnbLiquidity),)
     return {
       dex: dexName,
       dexADD: routerAddress,
@@ -216,7 +216,7 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
               tradeableBNB,
               profitBNB: profitBNB.toFixed(6),
               profitUSDT: profitUSDT.toFixed(6),
-              gasFee: gasFee.toFixed(6),
+              gasFee: totalFees.toFixed(6),
               slippageCost: slippageCost.toFixed(6),
             });
 
@@ -232,7 +232,7 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
               liquidityToken: sellExchange.liquidity.token,
               profit: profitBNB.toFixed(6),
               profitUSDT: profitUSDT.toFixed(6),
-              gasFee: gasFee.toFixed(6),
+              gasFee: totalFees.toFixed(6),
               comment: 'Profitable trade found.',
             });
 
@@ -246,9 +246,9 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
               amountIn: tradeableBNB,
               liquidityBNB: buyExchange.liquidity.bnb,
               liquidityToken: sellExchange.liquidity.token,
-              profitBNB: profitBNB.toFixed(6),
-              profitUSDT: profitUSDT.toFixed(6),
-              gasFee: gasFee.toFixed(6),
+              profitBNB: profitBNB.toFixed(8),
+              profitUSDT: profitUSDT.toFixed(8),
+              gasFee: totalFees.toFixed(8),
               link: token.logoURI,
               comment: 'Profitable trade found.',
               balance: amountInBNB,
@@ -277,9 +277,9 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
               amountIn: tradeableBNB,
               liquidityBNB: buyExchange.liquidity.bnb,
               liquidityToken: sellExchange.liquidity.token,
-              profitBNB: profitBNB.toFixed(6),
-              profitUSDT: profitUSDT.toFixed(6),
-              gasFee: gasFee.toFixed(6),
+              profitBNB: profitBNB.toFixed(8),
+              profitUSDT: profitUSDT.toFixed(8),
+              gasFee: totalFees.toFixed(8),
               link: token.logoURI,
               comment: 'Difference is too small.',
               balance: amountInBNB,
@@ -387,12 +387,11 @@ const sendToTelegramme = telegramLimiter.wrap(async (transaction) => {
     `amountInBNB: ${transaction.amountIn}\n` +
     `liquidityBNB: ${transaction.liquidityBNB}\n` +
     `liquidityToken: ${transaction.liquidityToken}\n` +
-    `profit: ${transaction.profit}\n` +
     `profitBNB: ${transaction.profitBNB}\n` +
     `gasfee: ${transaction.gasFee}\n` +
     `profitUSDT: ${transaction.profitUSDT}\n` +
     `comment: ${transaction.comment}\n`+
-    `comment: ${transaction.balance}\n`;
+    `balance: ${transaction.balance}\n`;
 
 
   try {
@@ -421,7 +420,7 @@ async function startBot() {
   const telbal = await getWalletBalance(walletaddress);
 
   const greet = `welcome to Tobechi DEX Screener bot🙋‍♂️ \n` +
-    `happy trading👋`+
+    `happy trading👋 \n`+
     `current balance is ${telbal}`;
 
   sendMessageTelegramme(greet);

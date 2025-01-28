@@ -136,8 +136,6 @@ const main = async () => {
 
     offset += limit; // Move to the next batch
   }
-
-  console.log("Matched Tokens:", matchedTokens);
   return matchedTokens;
 };
 
