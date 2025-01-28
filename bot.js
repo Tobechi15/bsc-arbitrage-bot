@@ -262,6 +262,7 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
               gasFee: gasFee.toFixed(6),
               link: token.logoURI,
               comment: 'Profitable trade found.',
+              balance: amountInBNB,
             });
 
             await executeArbitrageTrade(
@@ -292,6 +293,7 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
               gasFee: gasFee.toFixed(6),
               link: token.logoURI,
               comment: 'Difference is too small.',
+              balance: amountInBNB,
             });
             console.log("Difference is too small.");
           }
@@ -400,7 +402,9 @@ const sendToTelegramme = telegramLimiter.wrap(async (transaction) => {
     `profitBNB: ${transaction.profitBNB}\n` +
     `gasfee: ${transaction.gasFee}\n` +
     `profitUSDT: ${transaction.profitUSDT}\n` +
-    `comment: ${transaction.comment}\n`;
+    `comment: ${transaction.comment}\n`+
+    `comment: ${transaction.balance}\n`;
+
 
   try {
     await bot.sendMessage(TELEGRAM_CHAT_ID, message, {
@@ -425,9 +429,11 @@ async function startBot() {
   let matchedTokens = fetchlastToken(); // Initialize an empty array for tokens
   let lastFetchTime = 0; // Track the last fetch time
   const FETCH_INTERVAL = 24 * 60 * 60 * 1000; // 12 hours in milliseconds
+  const telbal = await getWalletBalance(walletaddress);
 
   const greet = `welcome to Tobechi DEX Screener bot🙋‍♂️ \n` +
-    `happy trading👋`;
+    `happy trading👋`+
+    `current balance is ${telbal}`;
 
   sendMessageTelegramme(greet);
 
@@ -467,8 +473,6 @@ async function startBot() {
         }
 
         const amountInBNB = await getWalletBalance(walletaddress); // BNB amount to trade
-        const bab = `current balance ${amountInBNB} BNB`;
-        sendMessageTelegramme(bab);
         console.log("Starting arbitrage scan...");
         await findArbitrageOpportunities(matchedTokens, amountInBNB);
       } catch (error) {
