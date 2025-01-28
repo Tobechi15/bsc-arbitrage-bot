@@ -467,7 +467,7 @@ async function startBot() {
         }
 
         const amountInBNB = await getWalletBalance(walletaddress); // BNB amount to trade
-        const bab = `current balance ${walletaddress} BNB`;
+        const bab = `current balance ${amountInBNB} BNB`;
         sendMessageTelegramme(bab);
         console.log("Starting arbitrage scan...");
         await findArbitrageOpportunities(matchedTokens, amountInBNB);
