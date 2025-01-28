@@ -204,75 +204,97 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
         const slippageCost = tradeableBNB * slippageTolerance;
         const totalFees = gasFee + slippageCost;
 
+        const tolerance = 0.0000146;
+
         // Check if the profit exceeds fees
         if (profitBNB > totalFees) {
-          foundOpportunity = true;
+          if ((profitBNB - totalFees) > tolerance) {
+            foundOpportunity = true;
 
-          // Calculate profitability in USDT
-          const { priceInBNB, priceInUSDT } = await getTokenPrices(token.address);
-          const profitUSDT = profitBNB * priceInUSDT;
-          
+            // Calculate profitability in USDT
+            const { priceInBNB, priceInUSDT } = await getTokenPrices(token.address);
+            const profitUSDT = profitBNB * priceInUSDT;
 
-          // Log the profitable trade
-          console.log(`Arbitrage opportunity found for ${token.symbol}!`);
-          results.push({
-            token: token.symbol,
-            buyFrom: buyExchange.dex,
-            sellTo: sellExchange.dex,
-            buyPrice: buyExchange.ask,
-            sellPrice: sellExchange.bid,
-            tradeableBNB,
-            profitBNB: profitBNB.toFixed(6),
-            profitUSDT: profitUSDT.toFixed(6),
-            gasFee: gasFee.toFixed(6),
-            slippageCost: slippageCost.toFixed(6),
-          });
 
-          logTransaction({
-            tokenName: token.symbol,
-            buyPrice: buyExchange.ask,
-            sellPrice: sellExchange.bid,
-            fromDex: buyExchange.dex,
-            toDex: sellExchange.dex,
-            tokenAddress: token.address,
-            amountIn: tradeableBNB,
-            liquidityBNB: buyExchange.liquidity.bnb,
-            liquidityToken: sellExchange.liquidity.token,
-            profit: profitBNB.toFixed(6),
-            profitUSDT: profitUSDT.toFixed(6),
-            gasFee: gasFee.toFixed(6),
-            comment: 'Profitable trade found',
-          });
+            // Log the profitable trade
+            console.log(`Arbitrage opportunity found for ${token.symbol}!`);
+            results.push({
+              token: token.symbol,
+              buyFrom: buyExchange.dex,
+              sellTo: sellExchange.dex,
+              buyPrice: buyExchange.ask,
+              sellPrice: sellExchange.bid,
+              tradeableBNB,
+              profitBNB: profitBNB.toFixed(6),
+              profitUSDT: profitUSDT.toFixed(6),
+              gasFee: gasFee.toFixed(6),
+              slippageCost: slippageCost.toFixed(6),
+            });
 
-          sendToTelegramme({
-            tokenName: token.symbol,
-            buyPrice: buyExchange.ask,
-            sellPrice: sellExchange.bid,
-            fromDex: buyExchange.dex,
-            toDex: sellExchange.dex,
-            tokenAddress: token.address,
-            amountIn: tradeableBNB,
-            liquidityBNB: buyExchange.liquidity.bnb,
-            liquidityToken: sellExchange.liquidity.token,
-            profitBNB: profitBNB.toFixed(6),
-            profitUSDT: profitUSDT.toFixed(6),
-            gasFee: gasFee.toFixed(6),
-            link: token.logoURI,
-            comment: 'Profitable trade found',
-          });
+            logTransaction({
+              tokenName: token.symbol,
+              buyPrice: buyExchange.ask,
+              sellPrice: sellExchange.bid,
+              fromDex: buyExchange.dex,
+              toDex: sellExchange.dex,
+              tokenAddress: token.address,
+              amountIn: tradeableBNB,
+              liquidityBNB: buyExchange.liquidity.bnb,
+              liquidityToken: sellExchange.liquidity.token,
+              profit: profitBNB.toFixed(6),
+              profitUSDT: profitUSDT.toFixed(6),
+              gasFee: gasFee.toFixed(6),
+              comment: 'Profitable trade found.',
+            });
 
-          await executeArbitrageTrade(
-            contractAddress,
-            buyExchange.dexAdd,
-            sellExchange.dexADD,
-            BNB_ADDRESS,
-            token.address, // Assuming it's the same token being traded in both DEXes
-            tradeableBNB,
-            buyExchange.ask * (1 - slippageTolerance),
-            sellExchange.bid * (1 + slippageTolerance),
-            walletaddress,
-            privateKey
-          );
+            sendToTelegramme({
+              tokenName: token.symbol,
+              buyPrice: buyExchange.ask,
+              sellPrice: sellExchange.bid,
+              fromDex: buyExchange.dex,
+              toDex: sellExchange.dex,
+              tokenAddress: token.address,
+              amountIn: tradeableBNB,
+              liquidityBNB: buyExchange.liquidity.bnb,
+              liquidityToken: sellExchange.liquidity.token,
+              profitBNB: profitBNB.toFixed(6),
+              profitUSDT: profitUSDT.toFixed(6),
+              gasFee: gasFee.toFixed(6),
+              link: token.logoURI,
+              comment: 'Profitable trade found.',
+            });
+
+            await executeArbitrageTrade(
+              contractAddress,
+              buyExchange.dexAdd,
+              sellExchange.dexADD,
+              BNB_ADDRESS,
+              token.address, // Assuming it's the same token being traded in both DEXes
+              tradeableBNB,
+              buyExchange.ask * (1 - slippageTolerance),
+              sellExchange.bid * (1 + slippageTolerance),
+              walletaddress,
+              privateKey
+            );
+          } else {
+            sendToTelegramme({
+              tokenName: token.symbol,
+              buyPrice: buyExchange.ask,
+              sellPrice: sellExchange.bid,
+              fromDex: buyExchange.dex,
+              toDex: sellExchange.dex,
+              tokenAddress: token.address,
+              amountIn: tradeableBNB,
+              liquidityBNB: buyExchange.liquidity.bnb,
+              liquidityToken: sellExchange.liquidity.token,
+              profitBNB: profitBNB.toFixed(6),
+              profitUSDT: profitUSDT.toFixed(6),
+              gasFee: gasFee.toFixed(6),
+              link: token.logoURI,
+              comment: 'Difference is too small.',
+            });
+            console.log("Difference is too small.");
+          }
         }
       }
     }
@@ -405,8 +427,8 @@ async function startBot() {
   const FETCH_INTERVAL = 24 * 60 * 60 * 1000; // 12 hours in milliseconds
 
   const greet = `welcome to Tobechi DEX Screener bot🙋‍♂️ \n` +
-                `happy trading👋`;
-                
+    `happy trading👋`;
+
   sendMessageTelegramme(greet);
 
   while (true) {
