@@ -37,16 +37,6 @@ http.createServer((req, res) => {
   console.log(`Server is listening on port ${PORT}`);
 });
 
-setInterval(async () => {
-  console.log("Attempting to ping the app...");
-  try {
-    await axios.get(appUrl);
-    console.log("Pinged the app to keep it awake.");
-  } catch (error) {
-    console.error("Error pinging the app:", error.message);
-  }
-}, 5 * 60 * 1000); // Ping every 5 minutes
-
 async function getWalletBalance(walletAddress) {
   try {
     // Get balance in Wei (BNB's smallest unit)
