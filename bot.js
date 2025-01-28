@@ -198,13 +198,12 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
 
         // Check if the profit exceeds fees
         if (profitBNB > totalFees) {
+          // Calculate profitability in USDT
+          const { priceInBNB, priceInUSDT } = await getTokenPrices(token.address);
+          const profitUSDT = profitBNB * priceInUSDT;
+
           if ((profitBNB - totalFees) > tolerance) {
             foundOpportunity = true;
-
-            // Calculate profitability in USDT
-            const { priceInBNB, priceInUSDT } = await getTokenPrices(token.address);
-            const profitUSDT = profitBNB * priceInUSDT;
-
 
             // Log the profitable trade
             console.log(`Arbitrage opportunity found for ${token.symbol}!`);
