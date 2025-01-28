@@ -190,8 +190,8 @@ async function findArbitrageOpportunities(tokensToScan, amountInBNB) {
 
         // Calculate the profit
         const profitBNB = bnbReceived - tradeableBNB;
-        const gasFee = Number((gasPrice * BigInt(estimatedGasLimit)) / BigInt(1e18)); // Gas fee in BNB
-        console.log(gasPrice);
+        const gasFeeWei = gasPrice * BigInt(estimatedGasLimit);
+        const gasFee = web3.utils.fromWei(gasFeeWei.toString(), 'ether');
         const slippageCost = tradeableBNB * slippageTolerance;
         const totalFees = gasFee + slippageCost;
 
